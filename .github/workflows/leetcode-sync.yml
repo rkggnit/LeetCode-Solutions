@@ -3,20 +3,33 @@ name: LeetCode Sync
 on:
   workflow_dispatch:
   schedule:
-    # Runs at 00:00 UTC every day. You can adjust this cron schedule if you prefer.
-    - cron: "0 0 * * *"
+    - cron: "0 2 * * *"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: Sync LeetCode Solutions
-        uses: joshcai/leetcode-sync@v1.7
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          github-token: ${{ github.token }}
-          leetcode-csrf-token: ${{ secrets.LEETCODE_CSRF_TOKEN }}
-          leetcode-session: ${{ secrets.LEETCODE_SESSION }}
-          destination-folder: my-solutions # (Optional) Groups solutions into a specific folder
-          verbose: true
-          commit-header: 'Sync LeetCode submissions'
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run LeetCode Sync
+        env:
+          LEETCODE_SESSION: ${{ secrets.LEETCODE_SESSION }}
+          LEETCODE_CSRF_TOKEN: ${{ secrets.LEETCODE_CSRF_TOKEN }}
+        run: python sync_leetcode.py
+
+      - name: Commit and Push Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Automated LeetCode Sync"

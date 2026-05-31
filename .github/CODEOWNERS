@@ -1,0 +1,5 @@
+# Protect the automation script
+/sync_hackerrank.py @rkggnit
+
+# Protect this rulebook from being changed or deleted
+/.github/CODEOWNERS @rkggnit

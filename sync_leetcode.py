@@ -73,6 +73,10 @@ def fetch_question_data(title_slug):
     query = """
     query questionData($titleSlug: String!) {
       question(titleSlug: $titleSlug) {
+        questionFrontendId
+        topicTags {
+          name
+        }
         content
       }
     }
@@ -81,7 +85,7 @@ def fetch_question_data(title_slug):
     if resp.status_code == 200:
         data = resp.json().get('data', {}).get('question')
         if data:
-            return data.get('content')
+            return data
     return None
 
 def sync_leetcode():
@@ -113,17 +117,40 @@ def sync_leetcode():
                 lang = sub['lang']
                 ext = EXTENSION_MAP.get(lang, lang)
                 
-                folder_path = os.path.join("LeetCode", clean_title)
+                print(f"   -> Processing: {clean_title}")
+                
+                # Fetch Question Details FIRST to determine the folder structure
+                q_data = fetch_question_data(slug)
+                if not q_data:
+                    print(f"      Failed to fetch metadata for {clean_title}. Skipping.")
+                    continue
+                
+                # Extract Number, Category, and HTML Content
+                question_id = q_data.get('questionFrontendId', '0000')
+                tags = q_data.get('topicTags', [])
+                html_content = q_data.get('content', '')
+                
+                # Pad the ID with zeros (e.g., 14 -> 0014) for sorting
+                padded_id = str(question_id).zfill(4)
+                
+                # Use the first tag as the primary category, default if none exist
+                primary_category = clean_filename(tags[0]['name']) if tags else "Uncategorized"
+                
+                # Create the new structured path
+                folder_and_file_name = f"{padded_id} - {clean_title}"
+                category_path = os.path.join("LeetCode", primary_category)
+                folder_path = os.path.join(category_path, folder_and_file_name)
+                
                 os.makedirs(folder_path, exist_ok=True)
                 
-                code_file_path = os.path.join(folder_path, f"{clean_title}.{ext}")
+                code_file_path = os.path.join(folder_path, f"{folder_and_file_name}.{ext}")
                 readme_path = os.path.join(folder_path, "README.md")
                 
                 # Skip if already downloaded
                 if os.path.exists(code_file_path):
                     continue
-                    
-                print(f"   -> Downloading Code and Question for: {clean_title}")
+                
+                print(f"      Downloading new solution to: {category_path}")
                 
                 # Fetch Code
                 code = fetch_submission_code(sub['id'])
@@ -131,13 +158,13 @@ def sync_leetcode():
                     with open(code_file_path, "w", encoding="utf-8") as f:
                         f.write(code)
                         
-                # Fetch Question Details
-                html_content = fetch_question_data(slug)
+                # Format README
                 cleaned_body = clean_html(html_content)
-                readme_content = f"# {raw_title}\n\n{cleaned_body}"
+                readme_content = f"# {question_id}. {raw_title}\n\n{cleaned_body}"
                 with open(readme_path, "w", encoding="utf-8") as f:
                     f.write(readme_content)
                         
+                # Small delay to prevent API rate limiting
                 time.sleep(1)
                 
         if not submission_data.get('hasNext'):
